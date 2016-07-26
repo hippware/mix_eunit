@@ -25,6 +25,6 @@ defmodule MixEunit.Mixfile do
   end
 
   defp deps do
-    [{:eunit_formatters, "~> 0.3.1", only: :test}]
+    [{:eunit_formatters, "~> 0.3.1"}]
   end
 end
