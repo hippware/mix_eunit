@@ -51,13 +51,17 @@ defmodule Mix.Tasks.Eunit do
     ensure_compile
     Mix.Task.run "compile"
 
-    # Start cover
+    # start cover
     cover =
       if options[:cover] do
         compile_path = Mix.Project.compile_path(project)
         cover = Keyword.merge(@cover, project[:test_coverage] || [])
         cover[:tool].start(compile_path, cover)
       end
+
+    # start the application
+    Mix.shell.print_app
+    Mix.Task.run "app.start", args
 
     # run the actual tests
     modules =
