@@ -159,24 +159,9 @@ defmodule Mix.Tasks.Eunit do
   defp profile_opt(_), do: []
 
   defp modify_project_config(post_config) do
-    # note - we have to grab build_path because
-    # Mix.Project.push resets the build path
-    build_path = Mix.Project.build_path
-    |> Path.split
-    |> Enum.map(fn(p) -> filter_replace(p, "dev", "eunit") end)
-    |> Path.join
-
     %{name: name, file: file} = Mix.Project.pop
-    Mix.ProjectStack.post_config(Keyword.merge(post_config,
-                                               [build_path: build_path]))
+    Mix.ProjectStack.post_config(post_config)
     Mix.Project.push name, file
-  end
-
-  defp filter_replace(x, x, r) do
-    r
-  end
-  defp filter_replace(x, _y, _r) do
-    x
   end
 
   defp ensure_compile do
