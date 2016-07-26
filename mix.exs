@@ -6,6 +6,7 @@ defmodule MixEunit.Mixfile do
      version: "0.2.0",
      elixir: "~> 1.0",
      description: "A mix task to run eunit tests, works for umbrella projects",
+     preferred_cli_env: [eunit: :test],
      package: package,
      deps: deps]
   end
