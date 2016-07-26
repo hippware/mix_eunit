@@ -25,9 +25,12 @@ defmodule Mix.Tasks.Eunit do
 
   The runner automatically adds \".erl\" to the patterns.
 
-  The following command line switch is also available:
+  The following command line switches are also available:
 
-  * --verbose/-v - Run eunit with the :verbose option.
+  * `--verbose`, `-v`   - Run eunit with the :verbose option.
+  * `--cover`, `-c`     - Create a coverage report after running the tests.
+  * `--profile`, `-p`   - Show a list of the 10 slowest tests.
+  * `--nocolor`         - Disable color output.
 
   Test search path:
   -----------------
