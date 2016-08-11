@@ -1,22 +1,18 @@
 defmodule Mix.Tasks.Eunit do
   use Mix.Task
-  @recursive true
-
-  @preferred_cli_env :test
-
-  @shortdoc "Compile and run eunit tests"
 
   @moduledoc """
-  Run eunit tests for a project.
+  Runs the eunit tests for a project.
 
-  This task compiles the project and its tests in the test environment,
-  then runs eunit tests.  This task works recursively in umbrella
-  projects.
+  This task compiles the project and its tests in the test environment, starts
+  the application (via `mix app.start`), then runs eunit tests.
 
+  This task works recursively in umbrella projects.
 
   ## Command line options
 
-  A list of patterns to match for test files can be supplied:
+  A list of patterns can be given after the task name in order to select the
+  tests to run:
 
   ```
   mix eunit foo* bar*
@@ -24,7 +20,7 @@ defmodule Mix.Tasks.Eunit do
 
   The runner automatically adds \".erl\" to the patterns.
 
-  The following command line switches are also available:
+  ## Command line options
 
   * `--verbose`, `-v` - run eunit with the :verbose option
   * `--cover`, `-c` - create a coverage report after running the tests
@@ -61,6 +57,9 @@ defmodule Mix.Tasks.Eunit do
   All \".erl\" files in the src and test directories are considered.
 
   """
+  @shortdoc "Runs a project's eunit tests"
+  @preferred_cli_env :test
+  @recursive true
 
   @switches [
     color: :boolean, cover: :boolean, profile: :boolean, verbose: :boolean,
