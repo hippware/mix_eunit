@@ -102,7 +102,9 @@ defmodule Mix.Tasks.Eunit do
       |> Enum.map(fn m -> {:module, m} end)
 
     eunit_opts = get_eunit_opts(options, post_config)
-    case :eunit.test(modules, eunit_opts) do
+    result = :eunit.test(modules, eunit_opts)
+
+    case result do
       :error -> Mix.raise "mix eunit failed"
       :ok -> :ok
     end
