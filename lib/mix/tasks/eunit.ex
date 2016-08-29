@@ -14,8 +14,7 @@ defmodule Mix.Tasks.Eunit do
   projects.
 
 
-  Command line options:
-  ---------------------
+  ## Command line options
 
   A list of patterns to match for test files can be supplied:
 
@@ -25,46 +24,96 @@ defmodule Mix.Tasks.Eunit do
 
   The runner automatically adds \".erl\" to the patterns.
 
-  The following command line switch is also available:
+  The following command line switches are also available:
 
-  * --verbose/-v - Run eunit with the :verbose option.
+  * `--verbose`, `-v` - run eunit with the :verbose option
+  * `--cover`, `-c` - create a coverage report after running the tests
+  * `--profile`, `-p` - show a list of the 10 slowest tests
+  * `--start` - start applications after compilation
+  * `--no-color` - disable color output
+  * `--force` - force compilation regardless of compilation times
+  * `--no-compile` - do not compile even if files require compilation
+  * `--no-archives-check` - do not check archives
+  * `--no-deps-check` - do not check dependencies
+  * `--no-elixir-version-check` - do not check Elixir version
 
-  Test search path:
-  -----------------
+  The `verbose`, `cover`, `profile`, `start` and `color` switches can be set in
+  the `mix.exs` file and will apply to every invocation of this task. Switches
+  set on the command line will override any settings in the mixfile.
+
+  ```
+  def project do
+    [
+      # ...
+      eunit: [
+        verbose: false,
+        cover: true,
+        profile: true,
+        start: true,
+        color: false
+      ]
+    ]
+  end
+  ```
+
+  ## Test search path
 
   All \".erl\" files in the src and test directories are considered.
 
   """
 
+  @switches [
+    color: :boolean, cover: :boolean, profile: :boolean, verbose: :boolean,
+    start: :boolean, compile: :boolean, force: :boolean, deps_check: :boolean,
+    archives_check: :boolean, elixir_version_check: :boolean
+  ]
+
+  @aliases [v: :verbose, p: :profile, c: :cover]
+
+  @default_cover_opts [output: "cover", tool: Mix.Tasks.Test.Cover]
+
   def run(args) do
-    options = parse_options(args)
+    project = Mix.Project.config
+    options = parse_options(args, project)
 
     # add test directory to compile paths and add
     # compiler options for test
-    post_config = eunit_post_config(Mix.Project.config)
+    post_config = eunit_post_config(project)
     modify_project_config(post_config)
 
-    # make sure mix will let us run compile
-    ensure_compile
-    Mix.Task.run "compile"
+    if Keyword.get(options, :compile, true) do
+      # make sure mix will let us run compile
+      ensure_compile
+      Mix.Task.run "compile", args
+    end
+
+    if Keyword.get(options, :start, false) do
+      # start the application
+      Mix.shell.print_app
+      Mix.Task.run "app.start", args
+    end
+
+    # start cover
+    cover_state = start_cover_tool(options[:cover], project)
 
     # run the actual tests
-    if(options[:cover], do: cover_start())
-    test_modules(post_config[:erlc_paths], options[:patterns])
-    |> Enum.map(&module_name_from_path/1)
-    |> Enum.drop_while(fn(m) ->
-      tests_pass?(m, options[:eunit_opts] ++ post_config[:eunit_opts]) end)
-    if(options[:cover], do: cover_analyse())
+    modules =
+      test_modules(post_config[:erlc_paths], options[:patterns])
+      |> Enum.map(&module_name_from_path/1)
+      |> Enum.map(fn m -> {:module, m} end)
+
+    eunit_opts = get_eunit_opts(options, post_config)
+    case :eunit.test(modules, eunit_opts) do
+      :error -> Mix.raise "mix eunit failed"
+      :ok -> :ok
+    end
+
+    analyze_coverage(cover_state)
   end
 
-  defp parse_options(args) do
-    {switches,
-     argv,
-     _errors} = OptionParser.parse(args,
-                                  switches: [verbose: :boolean,
-                                             cover: :boolean],
-                                  aliases: [v: :verbose,
-                                            c: :cover])
+  defp parse_options(args, project) do
+    {switches, argv} =
+      OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
     patterns = case argv do
                  [] -> ["*"]
@@ -76,14 +125,38 @@ defmodule Mix.Tasks.Eunit do
                    _ -> []
                  end
 
-    %{eunit_opts: eunit_opts, patterns: patterns, cover: switches[:cover]}
+    project[:eunit] || []
+    |> Keyword.take([:verbose, :profile, :cover, :start, :color])
+    |> Keyword.merge(switches)
+    |> Keyword.put(:eunit_opts, eunit_opts)
+    |> Keyword.put(:patterns, patterns)
   end
 
   defp eunit_post_config(existing_config) do
     [erlc_paths: existing_config[:erlc_paths] ++ ["test"],
      erlc_options: existing_config[:erlc_options] ++ [{:d, :TEST}],
-     eunit_opts: existing_config[:eunit_opts]]
+     eunit_opts: existing_config[:eunit_opts] || []]
   end
+
+  defp get_eunit_opts(options, post_config) do
+    eunit_opts = options[:eunit_opts] ++ post_config[:eunit_opts]
+    maybe_add_formatter(eunit_opts, options[:profile], options[:color] || true)
+  end
+
+  defp maybe_add_formatter(opts, profile, color) do
+    if Keyword.has_key?(opts, :report) do
+      opts
+    else
+      format_opts = color_opt(color) ++ profile_opt(profile)
+      [:no_tty, {:report, {:eunit_progress, format_opts}} | opts]
+    end
+  end
+
+  defp color_opt(true), do: [:colored]
+  defp color_opt(_), do: []
+
+  defp profile_opt(true), do: [:profile]
+  defp profile_opt(_), do: []
 
   defp modify_project_config(post_config) do
     %{name: name, file: file} = Mix.Project.pop
@@ -147,18 +220,19 @@ defmodule Mix.Tasks.Eunit do
     |> String.to_atom
   end
 
-  defp tests_pass?(module, eunit_opts) do
-    IO.puts("Running eunit tests in #{module}:")
-    :ok == :eunit.test(module, eunit_opts)
+  # coverage was disabled
+  defp start_cover_tool(nil, _project), do: nil
+  defp start_cover_tool(false, _project), do: nil
+  # set up the cover tool
+  defp start_cover_tool(_cover_switch, project) do
+    compile_path = Mix.Project.compile_path(project)
+    cover = Keyword.merge(@default_cover_opts, project[:test_coverage] || [])
+    # returns a callback
+    cover[:tool].start(compile_path, cover)
   end
 
-  defp cover_start() do
-    :cover.compile_beam_directory(String.to_charlist(Mix.Project.compile_path))
-  end
-
-  defp cover_analyse() do
-    dir = Mix.Project.config[:test_coverage][:output]
-    File.mkdir_p(dir)
-    :cover.analyse_to_file([:html, outdir: dir])
-  end
+  # no cover tool was specified
+  defp analyze_coverage(nil), do: :ok
+  # run the cover callback
+  defp analyze_coverage(cb), do: cb.()
 end
