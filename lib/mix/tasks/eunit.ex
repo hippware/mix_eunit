@@ -135,8 +135,16 @@ defmodule Mix.Tasks.Eunit do
 
   defp eunit_post_config(existing_config) do
     [erlc_paths: existing_config[:erlc_paths] ++ ["test"],
-     erlc_options: existing_config[:erlc_options] ++ [{:d, :TEST}],
+     erlc_options: maybe_add_test_define(existing_config[:erlc_options]),
      eunit_opts: existing_config[:eunit_opts] || []]
+  end
+
+  defp maybe_add_test_define(opts) do
+    if Enum.member?(opts, {:d, :TEST}) do
+      opts
+    else
+      [{:d, :TEST} | opts]
+    end
   end
 
   defp get_eunit_opts(options, post_config) do
