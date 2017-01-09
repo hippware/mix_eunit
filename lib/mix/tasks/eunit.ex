@@ -97,7 +97,8 @@ defmodule Mix.Tasks.Eunit do
 
     # run the actual tests
     modules =
-      test_modules(post_config[:erlc_paths], options[:patterns])
+      post_config[:erlc_paths]
+      |> test_modules(options[:patterns])
       |> Enum.map(&module_name_from_path/1)
       |> Enum.map(fn m -> {:module, m} end)
 
@@ -126,7 +127,7 @@ defmodule Mix.Tasks.Eunit do
                    _ -> []
                  end
 
-    project[:eunit] || []
+    (project[:eunit] || [])
     |> Keyword.take([:verbose, :profile, :cover, :start, :color])
     |> Keyword.merge(switches)
     |> Keyword.put(:eunit_opts, eunit_opts)
@@ -187,17 +188,18 @@ defmodule Mix.Tasks.Eunit do
   end
 
   defp test_modules(directories, patterns) do
-    all_modules = erlang_source_files(directories, patterns)
-    |> Enum.map(&module_name_from_path/1)
-    |> Enum.uniq
+    all_modules =
+      directories
+      |> erlang_source_files(patterns)
+      |> Enum.map(&module_name_from_path/1)
+      |> Enum.uniq
 
     remove_test_duplicates(all_modules, all_modules, [])
   end
 
   defp erlang_source_files(directories, patterns) do
-    Enum.map(patterns, fn(p) ->
-               Mix.Utils.extract_files(directories, p <> ".erl")
-             end)
+    patterns
+    |> Enum.map(fn p -> Mix.Utils.extract_files(directories, p <> ".erl") end)
     |> Enum.concat
     |> Enum.uniq
   end
