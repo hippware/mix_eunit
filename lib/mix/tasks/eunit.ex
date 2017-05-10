@@ -81,9 +81,7 @@ defmodule Mix.Tasks.Eunit do
     modify_project_config(post_config)
 
     if Keyword.get(options, :compile, true) do
-      # make sure mix will let us run compile
-      ensure_compile()
-      Mix.Task.run "compile", args
+      Mix.Tasks.Compile.run(args)
     end
 
     if Keyword.get(options, :start, false) do
@@ -172,19 +170,6 @@ defmodule Mix.Tasks.Eunit do
     %{name: name, file: file} = Mix.Project.pop
     Mix.ProjectStack.post_config(post_config)
     Mix.Project.push name, file
-  end
-
-  defp ensure_compile do
-    # we have to reenable compile and all of its
-    # child tasks (compile.erlang, compile.elixir, etc)
-    Mix.Task.reenable("compile")
-    Enum.each(compilers(), &Mix.Task.reenable/1)
-  end
-
-  defp compilers do
-    Mix.Task.all_modules
-    |> Enum.map(&Mix.Task.task_name/1)
-    |> Enum.filter(fn(t) -> match?("compile." <> _, t) end)
   end
 
   defp test_modules(directories, patterns) do
